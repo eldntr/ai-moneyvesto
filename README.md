@@ -1,80 +1,85 @@
 # ai-moneyvesto
 
-## 1. Chatbot
+## 1. Arsitektur & Alur Sistem
+
+### 1.1. Diagram Alur Permintaan (Request Flow)
+Diagram berikut mengilustrasikan alur permintaan untuk endpoint teks (`/chat`) dan vision (`/vision`).
 
 ```mermaid
 sequenceDiagram
     participant Klien as Pengguna/Frontend
     participant Docker as Kontainer Docker
-    participant Gunicorn as Server Gunicorn
     participant Flask as Aplikasi Flask
     participant Service as OpenRouter Service
     participant OpenRouter as OpenRouter API
 
-    Klien->>+Docker: POST /chat (port 5000)
-    Note over Docker: Meneruskan request ke port 8000
-    Docker->>+Gunicorn: Menerima request HTTP
-    Gunicorn->>+Flask: Meneruskan request ke aplikasi
-    Flask->>+Service: Memanggil get_chat_response(pesan_pengguna)
-    Service->>+OpenRouter: POST /v1/chat/completions (dengan API Key)
-    OpenRouter-->>-Service: Mengembalikan respons JSON dari LLM
-    Service-->>-Flask: Mengembalikan teks respons
-    Flask-->>-Gunicorn: Membuat respons JSON
-    Gunicorn-->>-Docker: Mengirimkan respons HTTP
-    Docker-->>-Klien: Mengembalikan respons JSON (200 OK)
+    %% Text Chat Flow
+    Klien->>+Docker: POST /chat (JSON)
+    Docker->>+Flask: Meneruskan request ke /chat
+    Flask->>+Service: get_chat_response(pesan)
+    Service->>+OpenRouter: POST /v1/chat/completions (text)
+    OpenRouter-->>-Service: Respons Teks
+    Service-->>-Flask: Kembalikan teks
+    Flask-->>-Docker: Respons JSON
+    Docker-->>-Klien: {"response": "..."}
+
+    %% Vision Chat Flow
+    Klien->>+Docker: POST /vision (multipart/form-data)
+    Docker->>+Flask: Meneruskan request ke /vision
+    Flask->>+Service: get_vision_response(pesan, gambar)
+    Note over Service: Encode gambar ke Base64
+    Service->>+OpenRouter: POST /v1/chat/completions (text+image)
+    OpenRouter-->>-Service: Respons Teks dari VLM
+    Service-->>-Flask: Kembalikan teks
+    Flask-->>-Docker: Respons JSON
+    Docker-->>-Klien: {"response": "..."}
 ```
 
-### Dokumentasi API
+### 1.2. Dokumentasi API
 
 #### Endpoint: `/chat`
-Endpoint utama untuk berinteraksi dengan chatbot.
+Endpoint utama untuk interaksi berbasis teks.
 
 - **URL**: `/chat`
 - **Method**: `POST`
 - **Headers**:
   - `Content-Type: application/json`
-
-#### Request Body (JSON):
-| Key     | Type   | Description               | Wajib |
-|---------|--------|---------------------------|-------|
-| message | string | Pesan teks dari pengguna. | Ya    |
-
-**Contoh Request Body**:
-```json
-{
-  "message": "Halo, apa kabar hari ini?"
-}
-```
-
-#### Respons Sukses (200 OK):
-Mengembalikan objek JSON dengan balasan dari model AI.
-
-**Contoh Respons Sukses**:
-```json
-{
-  "response": "Saya baik, terima kasih! Ada yang bisa saya bantu?"
-}
-```
-
-#### Respons Gagal:
-- **400 Bad Request**: Jika `message` kosong di dalam body.
+- **Request Body (JSON)**:
   ```json
   {
-    "error": "Pesan tidak boleh kosong"
+    "message": "Halo, apa kabar hari ini?"
   }
   ```
-- **500 Internal Server Error**: Jika terjadi kesalahan saat berkomunikasi dengan API OpenRouter.
+- **Contoh Pengujian dengan cURL**:
+  ```bash
+  curl -X POST http://localhost:{PORT}/chat -H "Content-Type: application/json" -d '{"message": "Ceritakan sebuah lelucon tentang pemrograman."}'
+  ```
+
+---
+
+#### Endpoint: `/vision`
+Endpoint untuk interaksi yang melibatkan gambar dan teks.
+
+- **URL**: `/vision`
+- **Method**: `POST`
+- **Headers**:
+  - `Content-Type: multipart/form-data`
+- **Request Body (Form Data)**:
+
+| Key       | Type   | Description                   | Wajib |
+| :-------- | :----- | :---------------------------- | :---- |
+| `message` | string | Pesan teks dari pengguna. | Ya    |
+| `image`   | file   | File gambar (jpg, png, webp). | Ya    |
+
+- **Respons Sukses (200 OK)**:
+  Mengembalikan objek JSON dengan deskripsi atau jawaban dari model AI berdasarkan gambar dan teks.
   ```json
   {
-    "error": "Gagal terhubung ke layanan OpenRouter."
+    "response": "Ini adalah gambar seekor anjing golden retriever yang sedang bermain di taman."
   }
   ```
-
-#### Contoh Pengujian dengan cURL
-Anda bisa menguji endpoint menggunakan `curl` dari terminal Anda.
-
-```bash
-curl -X POST http://localhost:5000/chat \
--H "Content-Type: application/json" \
--d '{"message": "Ceritakan sebuah lelucon tentang pemrograman."}'
-```
+- **Contoh Pengujian dengan cURL**:
+  Ganti `path/to/your/image.jpg` dengan path file gambar Anda.
+  ```bash
+  curl -X POST http://localhost:{PORT}/vision -F "message=Gambar apa ini dan ada berapa objek di dalamnya?" -F "image=@test\image1.jpg"
+  ```
