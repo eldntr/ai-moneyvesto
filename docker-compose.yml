@@ -1,0 +1,11 @@
+# docker-compose.yml
+version: '3.8'
+services:
+  chatbot-backend:
+    build: .
+    container_name: chatbot_backend_service
+    ports:
+      - "5000:8000"
+    env_file:
+      # Muat variabel lingkungan dari file .env
+      - .env
