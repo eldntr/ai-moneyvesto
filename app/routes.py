@@ -39,6 +39,13 @@ def vision():
     if not text_prompt:
         return jsonify({"error": "Pesan teks tidak ditemukan"}), 400
 
+    # Tambahkan prompt untuk memberi tahu model
+    text_prompt += """
+    Tolong analisis gambar yang diberikan. Jika itu adalah foto nota, ekstrak informasi transaksi seperti deskripsi barang, jumlah, dan harga. 
+    Jika itu adalah foto barang, maka cari harga jika tidak ada maka buat deskripsi singkat tentang barang tersebut. 
+    Jika itu adalah aktivitas rekening, tambahkan informasi apakah itu pengeluaran atau pemasukan untuk setiap aktivitas aktivitasnya.
+    """
+
     image_file = request.files['image']
     if image_file.filename == '':
         return jsonify({"error": "Tidak ada file gambar yang dipilih"}), 400

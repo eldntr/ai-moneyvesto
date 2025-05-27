@@ -91,22 +91,20 @@ Endpoint untuk interaksi yang melibatkan gambar dan teks.
 
 | Key       | Type   | Description                   | Wajib |
 | :-------- | :----- | :---------------------------- | :---- |
-| `message` | string | Pesan teks dari pengguna. | Ya    |
+| `message` | string | Pesan teks dari pengguna. Tambahkan konteks seperti "foto nota", "foto barang", atau "aktivitas rekening". | Ya    |
 | `image`   | file   | File gambar (jpg, png, webp). | Ya    |
 
 - **Respons Sukses (200 OK)**:
   Mengembalikan objek JSON dengan deskripsi atau jawaban dari model AI berdasarkan gambar dan teks.
   ```json
   {
-    "response": "Ini adalah gambar seekor anjing golden retriever yang sedang bermain di taman."
+    "response": "Nota ini mencatat pembelian 2 barang: 1 galon air mineral seharga 22000 dan 1 bungkus roti seharga 15000."
   }
   ```
 - **Contoh Pengujian dengan cURL**:
   Ganti `path/to/your/image.jpg` dengan path file gambar Anda.
   ```bash
-  curl -X POST http://localhost:{PORT}/vision \
-       -F "message=Gambar apa ini dan ada berapa objek di dalamnya?" \
-       -F "image=@path/to/your/image.jpg"
+  curl -X POST http://localhost:{PORT}/vision -F "image=@path/to/your/image.jpg"
   ```
 
 --- 
