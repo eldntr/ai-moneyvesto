@@ -14,12 +14,12 @@ sequenceDiagram
 
     Klien->>+Docker: POST /chat (JSON)
     Docker->>+Flask: Meneruskan request ke /chat
-    Flask->>+Service: get_chat_response(pesan)
+    Flask->>+Service: get_chat_response(pesan, previous_chats)
     Service->>+OpenRouter: POST /v1/chat/completions (text)
     OpenRouter-->>-Service: Respons Teks
     Service-->>-Flask: Kembalikan teks
     Flask-->>-Docker: Respons JSON
-    Docker-->>-Klien: {"response": "..."}
+    Docker-->>-Klien: {"response": "..."} 
 ```
 
 Endpoint utama untuk interaksi berbasis teks.
@@ -31,15 +31,34 @@ Endpoint utama untuk interaksi berbasis teks.
 - **Request Body (JSON)**:
   ```json
   {
-    "message": "Halo, apa kabar hari ini?"
+    "message": "Apa kabar hari ini?",
+    "previous_chats": [
+      "Halo, siapa namamu?",
+      "Namaku AI Moneyvesto. Bagaimana saya bisa membantu?"
+    ]
+  }
+  ```
+- **Respons Sukses (200 OK)**:
+  Mengembalikan respons teks dari model AI.
+  ```json
+  {
+    "response": "Saya baik-baik saja, terima kasih. Ada yang bisa saya bantu?"
   }
   ```
 - **Contoh Pengujian dengan cURL**:
   ```bash
-  curl -X POST http://localhost:{PORT}/chat -H "Content-Type: application/json" -d '{"message": "Ceritakan sebuah lelucon tentang pemrograman."}'
+  curl -X POST http://localhost:{PORT}/chat \
+       -H "Content-Type: application/json" \
+       -d '{
+            "message": "Apa kabar hari ini?",
+            "previous_chats": [
+              "Halo, siapa namamu?",
+              "Namaku AI Moneyvesto. Bagaimana saya bisa membantu?"
+            ]
+          }'
   ```
 
----
+--- 
 
 ### Endpoint: `/vision`
 
@@ -59,7 +78,7 @@ sequenceDiagram
     OpenRouter-->>-Service: Respons Teks dari VLM
     Service-->>-Flask: Kembalikan teks
     Flask-->>-Docker: Respons JSON
-    Docker-->>-Klien: {"response": "..."}
+    Docker-->>-Klien: {"response": "..."} 
 ```
 
 Endpoint untuk interaksi yang melibatkan gambar dan teks.
@@ -85,10 +104,12 @@ Endpoint untuk interaksi yang melibatkan gambar dan teks.
 - **Contoh Pengujian dengan cURL**:
   Ganti `path/to/your/image.jpg` dengan path file gambar Anda.
   ```bash
-  curl -X POST http://localhost:{PORT}/vision -F "message=Gambar apa ini dan ada berapa objek di dalamnya?" -F "image=@test\image1.jpg"
+  curl -X POST http://localhost:{PORT}/vision \
+       -F "message=Gambar apa ini dan ada berapa objek di dalamnya?" \
+       -F "image=@path/to/your/image.jpg"
   ```
 
----
+--- 
 
 ### Endpoint: `/record`
 
@@ -142,5 +163,7 @@ Endpoint untuk mencatat transaksi keuangan dari pesan teks.
   ```
 - **Contoh Pengujian dengan cURL**:
   ```bash
-  curl -X POST http://localhost:6677/record -H "Content-Type: application/json" -d '{ "message": "hari ini beli 2 porsi nasi goreng 15rb dan es teh manis 5000" }'
+  curl -X POST http://localhost:{PORT}/record \
+       -H "Content-Type: application/json" \
+       -d '{ "message": "hari ini beli 2 porsi nasi goreng 15rb dan es teh manis 5000" }'
   ```

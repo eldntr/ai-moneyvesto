@@ -16,11 +16,16 @@ def allowed_file(filename):
 @chat_bp.route('/chat', methods=['POST'])
 def chat():
     user_message = request.json.get('message')
+    previous_chats = request.json.get('previous_chats', [])  # Default to an empty list if not provided
+
     if not user_message:
         return jsonify({"error": "Pesan tidak boleh kosong"}), 400
 
+    if not isinstance(previous_chats, list):
+        return jsonify({"error": "previous_chats harus berupa array JSON"}), 400
+
     try:
-        model_response = openrouter_service.get_chat_response(user_message)
+        model_response = openrouter_service.get_chat_response(user_message, previous_chats)
         return jsonify({"response": model_response})
     except (ConnectionError, ValueError) as e:
         return jsonify({"error": str(e)}), 500

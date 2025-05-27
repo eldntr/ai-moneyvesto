@@ -18,8 +18,14 @@ class OpenRouterService:
         image_file.save(buffered, format=image_format.upper())
         return base64.b64encode(buffered.getvalue()).decode('utf-8')
 
-    def get_chat_response(self, user_message: str, model: str = None) -> str:
+    def get_chat_response(self, user_message: str, previous_chats: list = None, model: str = None) -> str:
         model = model or Config.DEFAULT_CHAT_MODEL
+        previous_chats = previous_chats or []  # Default to an empty list if not provided
+
+        # Construct the messages payload
+        messages = [{"role": "user", "content": chat} for chat in previous_chats]
+        messages.append({"role": "user", "content": user_message})
+
         try:
             response = requests.post(
                 url=f"{self.api_base}/chat/completions",
@@ -30,7 +36,7 @@ class OpenRouterService:
                 },
                 json={
                     "model": model,
-                    "messages": [{"role": "user", "content": user_message}]
+                    "messages": messages
                 }
             )
             response.raise_for_status()
