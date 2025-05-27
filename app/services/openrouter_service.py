@@ -1,7 +1,10 @@
+# app/services/openrouter_service.py
+
 import requests
 import base64
 from app.config import Config
 from io import BytesIO
+import json
 
 class OpenRouterService:
     def __init__(self):
@@ -79,5 +82,76 @@ class OpenRouterService:
         except (KeyError, IndexError) as e:
             print(f"Struktur respons API VLM tidak valid: {e}")
             raise ValueError("Respons dari Vision API tidak sesuai format yang diharapkan.")
+
+    def record_finance(self, user_message: str, model: str = None) -> list:
+        """
+        Menganalisis pesan pengguna untuk mengekstrak transaksi keuangan menggunakan LLM.
+        """
+        model = model or Config.DEFAULT_CHAT_MODEL
+        system_prompt = """
+Anda adalah asisten pencatatan keuangan yang cerdas. Tugas Anda adalah mengubah teks transaksi dalam bahasa Indonesia menjadi format JSON yang terstruktur. Teks input bisa berisi satu atau lebih item transaksi.
+
+**Aturan:**
+1.  Identifikasi setiap item dalam pesan.
+2.  Untuk setiap item, ekstrak informasi berikut:
+    * `description`: Nama atau deskripsi barang/jasa. Buat deskripsi yang jelas dan ringkas.
+    * `transaction_type`: Tentukan apakah ini 'withdrawal' (pengeluaran) atau 'deposit' (pemasukan). Kata kunci untuk 'withdrawal' termasuk 'beli', 'bayar', 'keluar', 'ongkos'. Kata kunci untuk 'deposit' termasuk 'dapat', 'gaji', 'jual', 'terima', 'masuk'.
+    * `amount`: Jumlah atau kuantitas barang. Jika tidak disebutkan, anggap saja 1.
+    * `total_price`: Harga total untuk item tersebut. Abaikan pemisah ribuan seperti titik atau koma saat mengekstrak angka.
+3.  Format output HARUS berupa string JSON Array valid yang berisi objek-objek transaksi. Contoh: `[{"description": "...", ...}]`
+4.  Jika ada item yang tidak memiliki harga, jangan masukkan ke dalam output. Setiap item harus memiliki harga.
+5.  Jika Anda tidak dapat menemukan transaksi yang valid dalam pesan, kembalikan array JSON kosong `[]`.
+6.  Interpretasikan singkatan harga seperti 'rb' sebagai 'ribu' (misal: 15rb = 15000). Jika ada kuantitas, kalikan harga satuan dengan kuantitas untuk mendapatkan `total_price`.
+
+**Contoh Input -> Output:**
+1. "saya membeli 1 galon aqua dengan harga 22000" -> `[{"description":"Aqua galon","transaction_type":"withdrawal","amount":1,"total_price":22000}]`
+2. "hari ini beli 2 porsi nasi goreng 15rb dan es teh manis 5000" -> `[{"description":"Nasi Goreng","transaction_type":"withdrawal","amount":2,"total_price":30000},{"description":"Es Teh Manis","transaction_type":"withdrawal","amount":1,"total_price":5000}]`
+3. "Dapat gaji bulan ini 5.000.000" -> `[{"description":"Gaji bulan ini","transaction_type":"deposit","amount":1,"total_price":5000000}]`
+"""
+        try:
+            response = requests.post(
+                url=f"{self.api_base}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "HTTP-Referer": Config.YOUR_SITE_URL,
+                    "X-Title": Config.YOUR_APP_NAME,
+                },
+                json={
+                    "model": model,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_message}
+                    ],
+                    "response_format": {"type": "json_object"}
+                }
+            )
+            response.raise_for_status()
+            data = response.json()
+            content_str = data['choices'][0]['message']['content']
+            
+            # Membersihkan jika model membungkus output dengan markdown
+            if content_str.strip().startswith('```json'):
+                content_str = content_str.strip()[7:-3].strip()
+
+            parsed_json = json.loads(content_str)
+
+            # Menangani kasus jika model mengembalikan dict seperti {"transactions": [...]}
+            if isinstance(parsed_json, dict) and len(parsed_json) == 1:
+                return list(parsed_json.values())[0]
+            
+            if isinstance(parsed_json, list):
+                return parsed_json
+
+            raise ValueError("Format JSON dari API tidak dalam bentuk array.")
+
+        except requests.exceptions.RequestException as e:
+            print(f"Error saat menghubungi OpenRouter: {e}")
+            raise ConnectionError("Gagal terhubung ke layanan OpenRouter.")
+        except json.JSONDecodeError:
+            print(f"Gagal mendekode JSON dari respons: {content_str}")
+            raise ValueError("Gagal mem-parsing respons JSON dari API.")
+        except (KeyError, IndexError) as e:
+            print(f"Struktur respons API tidak valid: {e}")
+            raise ValueError("Respons dari API tidak sesuai format yang diharapkan.")
 
 openrouter_service = OpenRouterService()

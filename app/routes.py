@@ -1,3 +1,5 @@
+# app/routes.py
+
 from flask import Blueprint, request, jsonify
 from app.services.openrouter_service import openrouter_service
 from PIL import Image
@@ -50,3 +52,22 @@ def vision():
             return jsonify({"error": f"Gagal memproses gambar: {str(e)}"}), 400
     
     return jsonify({"error": "Jenis file tidak diizinkan"}), 400
+
+@chat_bp.route('/record', methods=['POST'])
+def record_finance_route():
+    """
+    Endpoint untuk memproses pencatatan transaksi dari pesan teks.
+    """
+    user_message = request.json.get('message')
+    if not user_message:
+        return jsonify({"error": "Pesan tidak boleh kosong"}), 400
+
+    try:
+        # Panggil service baru untuk memproses transaksi
+        result = openrouter_service.record_finance(user_message)
+        return jsonify(result)
+    except (ConnectionError, ValueError) as e:
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        # Menangkap error tak terduga lainnya
+        return jsonify({"error": f"Terjadi kesalahan: {str(e)}"}), 500

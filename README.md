@@ -2,8 +2,7 @@
 
 ## 1. Arsitektur & Alur Sistem
 
-### 1.1. Diagram Alur Permintaan (Request Flow)
-Diagram berikut mengilustrasikan alur permintaan untuk endpoint teks (`/chat`) dan vision (`/vision`).
+### Endpoint: `/chat`
 
 ```mermaid
 sequenceDiagram
@@ -13,7 +12,6 @@ sequenceDiagram
     participant Service as OpenRouter Service
     participant OpenRouter as OpenRouter API
 
-    %% Text Chat Flow
     Klien->>+Docker: POST /chat (JSON)
     Docker->>+Flask: Meneruskan request ke /chat
     Flask->>+Service: get_chat_response(pesan)
@@ -22,22 +20,8 @@ sequenceDiagram
     Service-->>-Flask: Kembalikan teks
     Flask-->>-Docker: Respons JSON
     Docker-->>-Klien: {"response": "..."}
-
-    %% Vision Chat Flow
-    Klien->>+Docker: POST /vision (multipart/form-data)
-    Docker->>+Flask: Meneruskan request ke /vision
-    Flask->>+Service: get_vision_response(pesan, gambar)
-    Note over Service: Encode gambar ke Base64
-    Service->>+OpenRouter: POST /v1/chat/completions (text+image)
-    OpenRouter-->>-Service: Respons Teks dari VLM
-    Service-->>-Flask: Kembalikan teks
-    Flask-->>-Docker: Respons JSON
-    Docker-->>-Klien: {"response": "..."}
 ```
 
-### 1.2. Dokumentasi API
-
-#### Endpoint: `/chat`
 Endpoint utama untuk interaksi berbasis teks.
 
 - **URL**: `/chat`
@@ -57,7 +41,27 @@ Endpoint utama untuk interaksi berbasis teks.
 
 ---
 
-#### Endpoint: `/vision`
+### Endpoint: `/vision`
+
+```mermaid
+sequenceDiagram
+    participant Klien as Pengguna/Frontend
+    participant Docker as Kontainer Docker
+    participant Flask as Aplikasi Flask
+    participant Service as OpenRouter Service
+    participant OpenRouter as OpenRouter API
+
+    Klien->>+Docker: POST /vision (multipart/form-data)
+    Docker->>+Flask: Meneruskan request ke /vision
+    Flask->>+Service: get_vision_response(pesan, gambar)
+    Note over Service: Encode gambar ke Base64
+    Service->>+OpenRouter: POST /v1/chat/completions (text+image)
+    OpenRouter-->>-Service: Respons Teks dari VLM
+    Service-->>-Flask: Kembalikan teks
+    Flask-->>-Docker: Respons JSON
+    Docker-->>-Klien: {"response": "..."}
+```
+
 Endpoint untuk interaksi yang melibatkan gambar dan teks.
 
 - **URL**: `/vision`
@@ -82,4 +86,61 @@ Endpoint untuk interaksi yang melibatkan gambar dan teks.
   Ganti `path/to/your/image.jpg` dengan path file gambar Anda.
   ```bash
   curl -X POST http://localhost:{PORT}/vision -F "message=Gambar apa ini dan ada berapa objek di dalamnya?" -F "image=@test\image1.jpg"
+  ```
+
+---
+
+### Endpoint: `/record`
+
+```mermaid
+sequenceDiagram
+    participant Klien as Pengguna/Frontend
+    participant Docker as Kontainer Docker
+    participant Flask as Aplikasi Flask
+    participant Service as OpenRouter Service
+    participant OpenRouter as OpenRouter API
+
+    Klien->>+Docker: POST /record (JSON)
+    Docker->>+Flask: Meneruskan request ke /record
+    Flask->>+Service: record_finance(pesan)
+    Service->>+OpenRouter: POST /v1/chat/completions (text)
+    OpenRouter-->>-Service: Respons JSON
+    Service-->>-Flask: Kembalikan JSON transaksi
+    Flask-->>-Docker: Respons JSON
+    Docker-->>-Klien: [{"description": "...", ...}]
+```
+
+Endpoint untuk mencatat transaksi keuangan dari pesan teks.
+
+- **URL**: `/record`
+- **Method**: `POST`
+- **Headers**:
+  - `Content-Type: application/json`
+- **Request Body (JSON)**:
+  ```json
+  {
+    "message": "hari ini beli 2 porsi nasi goreng 15rb dan es teh manis 5000"
+  }
+  ```
+- **Respons Sukses (200 OK)**:
+  Mengembalikan daftar transaksi dalam format JSON.
+  ```json
+  [
+    {
+      "description": "Nasi Goreng",
+      "transaction_type": "withdrawal",
+      "amount": 2,
+      "total_price": 30000
+    },
+    {
+      "description": "Es Teh Manis",
+      "transaction_type": "withdrawal",
+      "amount": 1,
+      "total_price": 5000
+    }
+  ]
+  ```
+- **Contoh Pengujian dengan cURL**:
+  ```bash
+  curl -X POST http://localhost:6677/record -H "Content-Type: application/json" -d '{ "message": "hari ini beli 2 porsi nasi goreng 15rb dan es teh manis 5000" }'
   ```
