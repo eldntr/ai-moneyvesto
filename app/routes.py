@@ -83,3 +83,57 @@ def record_finance_route():
     except Exception as e:
         # Menangkap error tak terduga lainnya
         return jsonify({"error": f"Terjadi kesalahan: {str(e)}"}), 500
+
+@chat_bp.route('/transaction', methods=['POST'])
+def process_transaction_image():
+    """
+    Endpoint untuk memproses gambar nota/struk menjadi data transaksi terstruktur.
+    Menggabungkan vision processing, finance recording, dan respons dengan berbagai nada.
+    """
+    if 'image' not in request.files:
+        return jsonify({"error": "File gambar tidak ditemukan"}), 400
+    
+    image_file = request.files['image']
+    if image_file.filename == '':
+        return jsonify({"error": "Tidak ada file gambar yang dipilih"}), 400
+
+    if not (image_file and allowed_file(image_file.filename)):
+        return jsonify({"error": "Jenis file tidak diizinkan"}), 400
+
+    # Get tone type parameter (optional, defaults to "all")
+    tone_type = request.form.get('tone_type', 'all')
+
+    # Prompt khusus untuk ekstraksi transaksi dari gambar
+    transaction_prompt = """
+    Analisis gambar nota/struk ini dan ekstrak semua informasi transaksi yang terlihat. 
+    Berikan hasil dalam format teks yang menjelaskan setiap item yang dibeli, jumlahnya, dan harganya.
+    Format seperti: "beli [nama barang] [jumlah] dengan harga [harga]" untuk setiap item.
+    Jika ada beberapa item, pisahkan dengan kalimat terpisah.
+    Fokus pada nama barang, kuantitas, dan harga total per item.
+    """
+
+    try:
+        # Step 1: Process image with vision service
+        image = Image.open(io.BytesIO(image_file.read()))
+        image_format = image.format or 'JPEG'
+        
+        vision_response = openrouter_service.get_vision_response(
+            transaction_prompt, image, image_format
+        )
+        
+        # Step 2: Process vision response with record service
+        structured_transactions = openrouter_service.record_finance(vision_response)
+        
+        # Step 3: Generate tone-based responses
+        tone_responses = openrouter_service.get_tone_responses(vision_response, structured_transactions, tone_type)
+        
+        return jsonify({
+            "vision_analysis": vision_response,
+            "transactions": structured_transactions,
+            "responses": tone_responses
+        })
+        
+    except (ConnectionError, ValueError) as e:
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        return jsonify({"error": f"Gagal memproses transaksi dari gambar: {str(e)}"}), 500
