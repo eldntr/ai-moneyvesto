@@ -165,3 +165,99 @@ Endpoint untuk mencatat transaksi keuangan dari pesan teks.
        -H "Content-Type: application/json" \
        -d '{ "message": "hari ini beli 2 porsi nasi goreng 15rb dan es teh manis 5000" }'
   ```
+
+--- 
+
+### Endpoint: `/transaction`
+
+```mermaid
+sequenceDiagram
+    participant Klien as Pengguna/Frontend
+    participant Docker as Kontainer Docker
+    participant Flask as Aplikasi Flask
+    participant Service as OpenRouter Service
+    participant OpenRouter as OpenRouter API
+
+    Klien->>+Docker: POST /transaction (multipart/form-data)
+    Docker->>+Flask: Meneruskan request ke /transaction
+    Flask->>+Service: get_vision_response(prompt, gambar)
+    Note over Service: Encode gambar ke Base64
+    Service->>+OpenRouter: POST /v1/chat/completions (text+image)
+    OpenRouter-->>-Service: Respons Teks dari VLM
+    Service->>+Service: record_finance(vision_response)
+    Service->>+OpenRouter: POST /v1/chat/completions (text)
+    OpenRouter-->>-Service: Respons JSON transaksi
+    Service->>+Service: get_tone_responses(vision_response)
+    Service->>+OpenRouter: POST /v1/chat/completions (3x untuk setiap nada)
+    OpenRouter-->>-Service: 3 Respons dengan nada berbeda
+    Service-->>-Flask: Kembalikan analisis + transaksi + respons nada
+    Flask-->>-Docker: Respons JSON
+    Docker-->>-Klien: {"vision_analysis": "...", "transactions": [...], "responses": {...}}
+```
+
+Endpoint untuk memproses gambar nota/struk menjadi data transaksi terstruktur dengan respons AI dalam 3 nada berbeda. Menggabungkan analisis gambar, pencatatan keuangan, dan respons berkarakter.
+
+- **URL**: `/transaction`
+- **Method**: `POST`
+- **Headers**:
+  - `Content-Type: multipart/form-data`
+- **Request Body (Form Data)**:
+
+| Key         | Type   | Description                              | Wajib |
+| :---------- | :----- | :--------------------------------------- | :---- |
+| `image`     | file   | File gambar nota/struk (jpg, png, webp). | Ya    |
+| `tone_type` | string | Jenis nada respons: `supportive_cheerleader`, `angry_mom`, `wise_mentor`, atau `all` (default: `all`) | Tidak |
+
+- **Respons Sukses (200 OK)**:
+  Mengembalikan objek JSON dengan analisis gambar, daftar transaksi terstruktur, dan respons AI sesuai tone yang diminta.
+  
+  **Jika tone_type="all" atau tidak diisi:**
+  ```json
+  {
+    "vision_analysis": "Nota ini mencatat pembelian beberapa item: beli nasi goreng 2 porsi dengan harga 30000, beli es teh manis 1 gelas dengan harga 5000.",
+    "transactions": [
+      {
+        "description": "Nasi Goreng",
+        "transaction_type": "withdrawal",
+        "amount": 2,
+        "total_price": 30000
+      },
+      {
+        "description": "Es Teh Manis",
+        "transaction_type": "withdrawal",
+        "amount": 1,
+        "total_price": 5000
+      }
+    ],
+    "responses": {
+      "supportive_cheerleader": "Great job mencatat pengeluaran! Rp 35.000 untuk makanan masih wajar kok. Keep it up!",
+      "angry_mom": "Duh, jajan lagi! 35 ribu buat makan siang doang. Coba deh masak sendiri, lebih hemat!",
+      "wise_mentor": "Pengeluaran Rp 35.000 per hari = Rp 1 juta per bulan untuk makan. Pertimbangkan meal prep untuk efisiensi budget."
+    }
+  }
+  ```
+  
+  **Jika tone_type="supportive_cheerleader":**
+  ```json
+  {
+    "vision_analysis": "Nota ini mencatat pembelian beberapa item...",
+    "transactions": [...],
+    "responses": {
+      "supportive_cheerleader": "Great job mencatat pengeluaran! Rp 35.000 untuk makanan masih wajar kok. Keep it up!"
+    }
+  }
+  ```
+
+- **Contoh Pengujian dengan cURL**:
+  ```bash
+  # Semua tone (default)
+  curl -X POST http://localhost:{PORT}/transaction \
+       -F "image=@path/to/your/receipt.jpg"
+  
+  # Tone tertentu
+  curl -X POST http://localhost:{PORT}/transaction \
+       -F "image=@path/to/your/receipt.jpg" \
+       -F "tone_type=supportive_cheerleader"
+  ```
+
+---
