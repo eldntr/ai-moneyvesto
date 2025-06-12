@@ -100,17 +100,23 @@ def process_transaction_image():
     if not (image_file and allowed_file(image_file.filename)):
         return jsonify({"error": "Jenis file tidak diizinkan"}), 400
 
+    # Get optional message from the form for context
+    user_message = request.form.get('message', '')
+    
     # Get tone type parameter (optional, defaults to "all")
     tone_type = request.form.get('tone_type', 'all')
 
     # Prompt khusus untuk ekstraksi transaksi dari gambar
-    transaction_prompt = """
-    Analisis gambar nota/struk ini dan ekstrak semua informasi transaksi yang terlihat. 
+    base_prompt = """
+    Analisis gambar ini dan ekstrak semua informasi transaksi yang terlihat atau disebutkan. 
     Berikan hasil dalam format teks yang menjelaskan setiap item yang dibeli, jumlahnya, dan harganya.
     Format seperti: "beli [nama barang] [jumlah] dengan harga [harga]" untuk setiap item.
     Jika ada beberapa item, pisahkan dengan kalimat terpisah.
     Fokus pada nama barang, kuantitas, dan harga total per item.
     """
+
+    # Gabungkan pesan pengguna dengan prompt dasar untuk memberikan konteks tambahan ke VLM
+    final_prompt = f"{user_message}\n\n{base_prompt}".strip()
 
     try:
         # Step 1: Process image with vision service
@@ -118,7 +124,7 @@ def process_transaction_image():
         image_format = image.format or 'JPEG'
         
         vision_response = openrouter_service.get_vision_response(
-            transaction_prompt, image, image_format
+            final_prompt, image, image_format
         )
         
         # Step 2: Process vision response with record service
